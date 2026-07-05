@@ -3,12 +3,6 @@ This module manages widgets.
 ]]
 
 local Device = require("device")
--- ==================== MTK 设备强制软件动画补丁 ====================
--- 只要设备是 MTK 并且用户打开了“翻页动画”开关，就加载补丁强制走软件路径
-if Device.isMTK and G_reader_settings:isTrue("swipe_animations") then
-    pcall(require, "device/swipe_animation_patch")
-end
--- ============================================================
 local Event = require("ui/event")
 local Geom = require("ui/geometry")
 local dbg = require("dbg")
@@ -1299,75 +1293,82 @@ function UIManager:_repaint()
     -- Execute a software swipe animation when requested on non-MTK devices.
     local software_animate = false
     if Screen.swipe_animations then
-        local is_mtk = Screen.device and Screen.device.isMTK and Screen.device:isMTK()
-        if not is_mtk then
             software_animate = true
         end
-    end
 
-    if software_animate then
-        Screen.swipe_animations = false
-        self.refresh_counted = true
+	 if software_animate then
+		-- Disable hardware swipe animations and take over refresh counting manually
+		Screen.swipe_animations = false
+		self.refresh_counted = true
 
-        local saved_bb = Screen.saved_bb
-        Screen.saved_bb = nil
-        if saved_bb then
-            local new_bb = Screen.bb:copy()
+		local saved_bb = Screen.saved_bb
+		Screen.saved_bb = nil
 
+		if saved_bb then
+			local new_bb = Screen.bb:copy()
 			local screen_w = Screen.bb:getWidth()
-            local screen_h = Screen.bb:getHeight()
-            local is_landscape = screen_w > screen_h
+			local screen_h = Screen.bb:getHeight()
+			local is_landscape = screen_w > screen_h
 
-            local steps = is_landscape and 6 or 8
-            local delay_us = is_landscape and 9000 or 22000
+			-- Use fewer animation steps and shorter delay in landscape mode for better visual feel
+			local steps = is_landscape and 6 or 8
+			local delay_us = is_landscape and 9000 or 22000
 
-            local swipe_forward = Screen.swipe_forward
-            local prev_dx = 0
+			local swipe_forward = Screen.swipe_forward
+			local prev_dx = 0
 
+			-- Draw the previous page as the starting background
 			Screen.bb:blitFrom(saved_bb, 0, 0, 0, 0, screen_w, screen_h)
 
-            for i = 1, steps do
-                local progress = i / steps
-                local dx = math.floor(screen_w * progress)
-                local strip_w = dx - prev_dx
+			-- Animate page turn by progressively revealing vertical strips of the new page
+			for i = 1, steps do
+				local progress = i / steps
+				local dx = math.floor(screen_w * progress)
+				local strip_w = dx - prev_dx
 
-                if strip_w > 0 then
-                    local strip_x
-                    if swipe_forward then
-                        strip_x = prev_dx
-                    else
-                        strip_x = screen_w - dx
-                    end
+				if strip_w > 0 then
+					local strip_x
+					if swipe_forward then
+						-- Swipe forward (right to left): reveal from the right edge
+						strip_x = screen_w - dx
+					else
+						-- Swipe backward (left to right): reveal from the left edge
+						strip_x = prev_dx
+					end
 
-                    Screen.bb:blitFrom(new_bb, strip_x, 0, strip_x, 0, strip_w, screen_h)
-                    Screen:refreshUI(strip_x, 0, strip_w, screen_h)
-                end
+					-- Copy a vertical strip from the new page onto the current screen buffer
+					Screen.bb:blitFrom(new_bb, strip_x, 0, strip_x, 0, strip_w, screen_h)
+					Screen:refreshUI(strip_x, 0, strip_w, screen_h)
+				end
 
-                prev_dx = dx
+				prev_dx = dx
 
-                if ffi and ffi.C and ffi.C.usleep then
-                    ffi.C.usleep(delay_us)
-                end
-            end
-			
-            -- 独立计数器（支持设置里的全面刷新频率）
-            if self.FULL_REFRESH_COUNT and self.FULL_REFRESH_COUNT > 0 then
-                if not self._swipe_full_refresh_count then
-                    self._swipe_full_refresh_count = 0
-                end
-                self._swipe_full_refresh_count = self._swipe_full_refresh_count + 1
+				-- Control animation speed with microsecond delay between strips
+				if ffi and ffi.C and ffi.C.usleep then
+					ffi.C.usleep(delay_us)
+				end
+			end
 
-                if self._swipe_full_refresh_count >= self.FULL_REFRESH_COUNT then
-                    Screen:refreshFull(0, 0, screen_w, screen_h)
-                    self._swipe_full_refresh_count = 0
-                end
-            end
-			
-            self._refresh_stack = {}
-            new_bb:free()
-            saved_bb:free()
-        end
-    end
+			-- Independent full refresh counter
+			-- Periodically triggers a full screen refresh according to the user's
+			-- FULL_REFRESH_COUNT setting (from E-ink options) to reduce ghosting
+			if self.FULL_REFRESH_COUNT and self.FULL_REFRESH_COUNT > 0 then
+				if not self._swipe_full_refresh_count then
+					self._swipe_full_refresh_count = 0
+				end
+				self._swipe_full_refresh_count = self._swipe_full_refresh_count + 1
+
+				if self._swipe_full_refresh_count >= self.FULL_REFRESH_COUNT then
+					Screen:refreshFull(0, 0, screen_w, screen_h)
+					self._swipe_full_refresh_count = 0
+				end
+			end
+
+			self._refresh_stack = {}
+			new_bb:free()
+			saved_bb:free()
+		end
+	end
 
     -- execute refreshes:
     for _, refresh in ipairs(self._refresh_stack) do
