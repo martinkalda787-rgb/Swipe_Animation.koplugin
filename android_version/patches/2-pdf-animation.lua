@@ -8,11 +8,10 @@ local Event = require("ui/event")
 local original_gotoPage = ReaderPaging._gotoPage
 function ReaderPaging:_gotoPage(number, orig_mode)
     if self.current_page and self.current_page > 0 and number ~= self.current_page and orig_mode ~= "scrolling" then
-        if not G_reader_settings:isTrue("swipe_animations") then
-            G_reader_settings:saveSetting("swipe_animations", true)
+        if G_reader_settings:isTrue("swipe_animations") then
+            local forward = number > self.current_page
+            self.ui:handleEvent(Event:new("PageChangeAnimation", forward))
         end
-        local forward = number > self.current_page
-        self.ui:handleEvent(Event:new("PageChangeAnimation", forward))
     end
     return original_gotoPage(self, number, orig_mode)
 end
