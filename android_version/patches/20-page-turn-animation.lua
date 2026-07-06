@@ -226,7 +226,11 @@ local ok, err = pcall(function()
 
                         -- On non-eink platforms (Android/SDL), flush each frame to the display
                         if Device:isAndroid() or Device:isSDL() then
-                            Screen:refreshPartial(0, 0, screen_w, screen_h)
+                            if swipe_forward then
+                                Screen:refreshPartial(screen_w - dx, 0, strip_w, screen_h)
+                            else
+                                Screen:refreshPartial(prev_dx, 0, strip_w, screen_h)
+                            end
                             Screen:afterPaint()
                             Screen:beforePaint()
                         end
