@@ -42,9 +42,10 @@ Suitable for Boox, Meebook, Hanvon, Xiaomi, and other devices running KOReader f
 
 ## Recommended Settings
 
-If pages flash black/white on every turn:
-- Go to **Settings → Screen → E-ink settings → Full refresh rate**
-- Increase the value to reduce flashing frequency.
+* **Avoid screen flashes (black/white flash)**:
+  - Go to **Settings → Screen → E-ink settings → Full refresh rate**, and increase the value to reduce flashing frequency.
+* **Android animation stutter/lag**:
+  - If you experience lag or stutter on Android devices after enabling the page-turn animation, please set your device's refresh mode (or system-level e-ink settings) to a faster mode (e.g., switch from **"High Definition"** mode to **"Fast / Speed / A2 / Quick"** refresh mode).
 
 ## Supported Devices
 
